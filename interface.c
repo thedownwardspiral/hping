@@ -27,24 +27,8 @@
 #include <net/if.h>
 #include <unistd.h>		/* close */
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || \
-    defined(__bsdi__) || defined(__APPLE__)
-#include <stdlib.h>
-#include <ifaddrs.h>
-#include <net/route.h>
-#include <net/if_media.h>
-#endif /* defined(__*BSD__) */
-
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__) && \
-    !defined(__linux__) && !defined(__sun__) && !defined(__bsdi__) && \
-    !defined(__APPLE__)
+#if !defined(__linux__)
 #error Sorry, interface code not implemented.
-#endif
-
-#ifdef __sun__
-#include <sys/sockio.h>
-#include <net/route.h>
-#include <net/if_dl.h>
 #endif
 
 #include "hping2.h"
@@ -61,7 +45,6 @@
  * the interfaces.
  *
  * On error -1 is returned, and errno set. */
-#if (defined OSTYPE_LINUX) || (defined __sun__)
 int hping_get_interfaces(struct hpingif *hif, int ilen)
 {
 	int fd, found = 0, i;
@@ -108,16 +91,12 @@ int hping_get_interfaces(struct hpingif *hif, int ilen)
 		ifptp = (ifr.ifr_flags & IFF_POINTOPOINT) != 0;
 		ifpromisc = (ifr.ifr_flags & IFF_PROMISC) != 0;
 		ifbroadcast = (ifr.ifr_flags & IFF_BROADCAST) != 0;
-#ifdef __sun__
-		ifindex = -1;
-#else
 		/* Get the interface index */
 		if (ioctl(fd, SIOCGIFINDEX, (char*)&ifr) == -1) {
 			/* oops.. failed, continue with the next */
 			continue;
 		}
 		ifindex = ifr.ifr_ifindex;
-#endif
 		/* Get the interface address */
 		if (ioctl(fd, SIOCGIFADDR, (char*)&ifr) == -1) {
 			/* oops.. failed, continue with the next */
@@ -141,12 +120,7 @@ int hping_get_interfaces(struct hpingif *hif, int ilen)
 		}
 		else
 		{
-#ifdef __sun__
-			/* somehow solaris is braidamaged in wrt ifr_mtu */
-			ifmtu = ifr.ifr_metric;
-#else
 			ifmtu = ifr.ifr_mtu;
-#endif
 		}
 #ifdef __linux__
 		/* Get the interface link status using MII */
@@ -176,7 +150,6 @@ int hping_get_interfaces(struct hpingif *hif, int ilen)
 		hif[found].hif_baddr[0] = ifbaddr;
 		hif[found].hif_naddr = 1;
 		hif[found].hif_nolink = ifnolink;
-		/* if_index should be set to -1 if the OS isn't Linux */
 		hif[found].hif_index = ifindex;
 		found++;
 		ilen--;
@@ -184,94 +157,7 @@ int hping_get_interfaces(struct hpingif *hif, int ilen)
 	close(fd);
 	return found;
 }
-#endif
 
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || \
-      defined(__bsdi__) || defined(__APPLE__)
-/* I wish getifaddrs() API on linux... -- SS */
-int hping_get_interfaces(struct hpingif *hif, int ilen)
-{
-	int found = 0;
-	struct ifaddrs *ifap, *ifa;
-	struct if_data *ifdata;
-	int ifloopback, ifptp, ifpromisc, ifbroadcast, ifnolink;
-
-	/* Get the interfaces list */
-	if (getifaddrs(&ifap) == -1)
-		return -1;
-	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
-		struct ifaddrs *ift;
-		struct sockaddr_in *sa, *ba;
-		int naddr = 0;
-		/* Not interested in DOWN interfaces */
-		if (!(ifa->ifa_flags & IFF_UP))
-			continue;
-		ifloopback = (ifa->ifa_flags & IFF_LOOPBACK) != 0;
-		ifptp = (ifa->ifa_flags & IFF_POINTOPOINT) != 0;
-		ifpromisc = (ifa->ifa_flags & IFF_PROMISC) != 0;
-		ifbroadcast = (ifa->ifa_flags & IFF_BROADCAST) != 0;
-		if (ifa->ifa_addr->sa_family != AF_LINK)
-			continue;
-		/* Now search for the AF_INET entry with the same name */
-		ift = ifa->ifa_next;
-		for (; ift; ift = ift->ifa_next) {
-			if (ift->ifa_addr->sa_family == AF_INET &&
-			    ift->ifa_addr &&
-			    !strcmp(ifa->ifa_name, ift->ifa_name))
-			{
-				sa = (struct sockaddr_in*) ift->ifa_addr;
-				ba = (struct sockaddr_in*) ift->ifa_broadaddr;
-				if (naddr < HPING_IFADDR_MAX) {
-					hif[found].hif_addr[naddr] =
-						sa->sin_addr.s_addr;
-					hif[found].hif_baddr[naddr] =
-						ba->sin_addr.s_addr;
-					naddr++;
-				}
-			}
-		}
-		if (!naddr)
-			continue;
-		/* Read the media status */
-		{
-			struct ifmediareq ifmr;
-			int s = -1;
-			memset(&ifmr, 0, sizeof(ifmr));
-			strncpy(ifmr.ifm_name, ifa->ifa_name, sizeof(ifmr.ifm_name));
-			ifnolink = 0;
-			s = socket(AF_INET, SOCK_DGRAM, 0);
-			if (s != -1 &&
-			    ioctl(s, SIOCGIFMEDIA, (caddr_t)&ifmr) != -1)
-			{
-				if (ifmr.ifm_status & IFM_AVALID) {
-					if (!(ifmr.ifm_status & IFM_ACTIVE))
-						ifnolink = 1;
-				}
-			}
-			if (s != -1)
-				close(s);
-		}
-		/* Add the new entry and cotinue */
-		ifdata = (struct if_data*) ifa->ifa_data;
-		strlcpy(hif[found].hif_name, ifa->ifa_name, HPING_IFNAME_LEN);
-		hif[found].hif_broadcast = ifbroadcast;
-		hif[found].hif_mtu = ifdata->ifi_mtu;
-		hif[found].hif_loopback = ifloopback;
-		hif[found].hif_ptp = ifptp;
-		hif[found].hif_promisc = ifpromisc;
-		hif[found].hif_naddr = naddr;
-		hif[found].hif_nolink = ifnolink;
-		/* if_index should be set to -1 if the OS isn't Linux */
-		hif[found].hif_index = -1;
-		found++;
-		ilen--;
-		if (!ilen)
-			break;
-	}
-	freeifaddrs(ifap);
-	return found;
-}
-#endif /* __*BSD__ */
 
 /* ------------------------------- test main -------------------------------- */
 #ifdef TESTMAIN

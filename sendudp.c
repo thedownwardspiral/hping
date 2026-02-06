@@ -57,12 +57,8 @@ void send_udp(void)
 	data_handler(data, data_size);
 
 	/* compute checksum */
-#ifdef STUPID_SOLARIS_CHECKSUM_BUG
-	udp->uh_sum = packet_size;
-#else
 	udp->uh_sum = cksum((__u16*) packet, PSEUDOHDR_SIZE +
 		      packet_size);
-#endif
 
 	/* adds this pkt in delaytable */
 	delaytable_add(sequence, src_port, time(NULL), get_usec(), S_SENT);

@@ -18,10 +18,7 @@ CC=${CC:=cc}
 echo build byteorder.c...
 $CC byteorder.c -o byteorder || exit 1
 
-INSTALL_MANPATH=`echo $MANPATH|cut -f1 -d:`
-if [ "$INSTALL_MANPATH" = "" ]; then
-	INSTALL_MANPATH="/usr/local/man"
-fi
+INSTALL_MANPATH="/usr/share/man"
 BYTEORDER=`./byteorder -m`
 
 echo create byteorder.h...
@@ -35,35 +32,32 @@ echo \#define $BYTEORDER >> byteorder.h
 echo \#endif /\* $BYTEORDER \*/ >> byteorder.h
 cat >> byteorder.h <<EOF
 
+/* Endianness bitfield macros for GCC compatibility */
+#if !defined(__LITTLE_ENDIAN_BITFIELD) && !defined(__BIG_ENDIAN_BITFIELD)
+#  if defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && defined(__ORDER_BIG_ENDIAN__)
+#    if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#      define __LITTLE_ENDIAN_BITFIELD 1
+#    elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#      define __BIG_ENDIAN_BITFIELD 1
+#    endif
+#  elif defined(BYTE_ORDER_LITTLE_ENDIAN)
+#    define __LITTLE_ENDIAN_BITFIELD 1
+#  elif defined(BYTE_ORDER_BIG_ENDIAN)
+#    define __BIG_ENDIAN_BITFIELD 1
+#  endif
+#endif
+
 #endif /* __BYTEORDER_H */
 EOF
 
-CONFIGOSTYPE=`uname -s | tr [a-z] [A-Z]`
-if [ ! "$CONFIGOSTYPE" ]; then
-	CONFIGOSTYPE=UNKNOWN
-fi
-
-# for BSD/OS use the historical name as it doesn't include '/'
-if [  $CONFIGOSTYPE = "BSD/OS" ]; then
-	CONFIGOSTYPE=BSDI
-fi
-
-case $CONFIGOSTYPE in
-  SUNOS)
-    SOLARISLIB="-lsocket -lresolv -lnsl"
-    BUG='/* #define STUPID_SOLARIS_CHECKSUM_BUG */'
-    case `uname -r` in
-      2.0*|5.0*|2.1*|5.1*|2.2*|5.2*|2.3*|5.3*|2.4*|5.4*|5.5.1)
-               BUG='#define STUPID_SOLARIS_CHECKSUM_BUG' ;;
-    esac
-esac
+CONFIGOSTYPE=LINUX
 
 #
 # TCL detection
 #
-for TCLPATH_TRY in "/usr/bin/" "/usr/local/bin/" "/bin/"
+for TCLPATH_TRY in "/usr/bin/"
 do
-	for TCLVER_TRY in "8.4" "8.3" "8.2" "8.1" "8.0"
+	for TCLVER_TRY in "8.6" "8.5" "8.4" "8.3" "8.2" "8.1" "8.0"
 	do
 		if [ -z $TCLSH ]
 		then
@@ -96,10 +90,17 @@ then
 		echo "==> WARNING: no Tcl header files found!"
 	fi
 fi
-if [ -n $USE_TCL ]
+if [ -n "$USE_TCL" ]
 then
-	LIBPOSTFIX=`ls -1 /usr/local/lib/ /usr/lib | grep 'libtcl[0-9]' | grep so | sed -e 's/\.so.*//g' -e 's/libtcl//g' | sort -r | head -1`
-	TCL_LIB="-ltcl${LIBPOSTFIX} -lm -lpthread"
+	for LIBDIR in /usr/lib/aarch64-linux-gnu /usr/lib/arm-linux-gnueabihf /usr/lib/x86_64-linux-gnu /usr/lib; do
+		if [ -d "$LIBDIR" ]; then
+			LIBPOSTFIX=$(ls -1 "$LIBDIR" 2>/dev/null | grep 'libtcl[0-9]' | grep '\.so' | sed -e 's/\.so.*//g' -e 's/libtcl//g' | sort -r | head -1)
+			if [ -n "$LIBPOSTFIX" ]; then
+				TCL_LIB="-L$LIBDIR -ltcl${LIBPOSTFIX} -lm -lpthread"
+				break
+			fi
+		fi
+	done
 fi
 
 #
@@ -138,7 +139,6 @@ echo creating Makefile...
 sed	-e "s^@PCAP@^$PCAP^g" \
 	-e "s^@PCAP_INCLUDE@^$PCAP_INCLUDE^g" \
 	-e "s^@MANPATH@^$INSTALL_MANPATH^g" \
-	-e "s^@SOLARISLIB@^$SOLARISLIB^g" \
 	-e "s^@USE_TCL@^$USE_TCL^g" \
 	-e "s^@TCL_INC@^$TCL_INC^g" \
 	-e "s^@TCL_VER@^$TCL_VER^g" \

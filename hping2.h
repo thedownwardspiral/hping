@@ -87,10 +87,6 @@
 
 /* header size of some physical layer type */
 #define PPPHDR_SIZE_LINUX	0
-#define PPPHDR_SIZE_FREEBSD	4
-#define PPPHDR_SIZE_OPENBSD	4
-#define PPPHDR_SIZE_NETBSD	4
-#define PPPHDR_SIZE_BSDI	4
 #define ETHHDR_SIZE		14
 #define LOHDR_SIZE		14
 #define WLANHDR_SIZE		14
@@ -357,7 +353,7 @@ struct delaytable_element {
 	int status;
 };
 
-volatile struct delaytable_element delaytable[TABLESIZE];
+extern volatile struct delaytable_element delaytable[TABLESIZE];
 
 /* protos */
 void	nop(void);				/* nop */
@@ -423,10 +419,8 @@ int	read_packet(void *packet, int size);
 void	scanmain(void);
 void	hping_script(int argc, char **argv);
 u_int32_t hp_rand(void);
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__) && \
-    !defined(__bsdi__) && !defined(__APPLE__)
 size_t strlcpy(char *dst, const char *src, size_t siz);
-#endif
+size_t strlcat(char *dst, const char *src, size_t siz);
 
 /* ARS glue */
 void hping_ars_send(char *s);

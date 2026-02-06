@@ -48,15 +48,7 @@ void send_ip (char* src, char *dst, char *data, unsigned int datalen,
 	ip->ihl		= (IPHDR_SIZE + optlen + 3) >> 2;
 	ip->tos		= ip_tos;
 
-#if defined OSTYPE_DARWIN || defined OSTYPE_FREEBSD || defined OSTYPE_NETBSD || defined OSTYPE_BSDI
-/* FreeBSD */
-/* NetBSD */
-	ip->tot_len	= packetsize;
-#else
-/* Linux */
-/* OpenBSD */
 	ip->tot_len	= htons(packetsize);
-#endif
 
 	if (!opt_fragment)
 	{
@@ -73,17 +65,8 @@ void send_ip (char* src, char *dst, char *data, unsigned int datalen,
 			htons((unsigned short) src_id);
 	}
 
-#if defined OSTYPE_DARWIN || defined OSTYPE_FREEBSD || defined OSTYPE_NETBSD | defined OSTYPE_BSDI
-/* FreeBSD */
-/* NetBSD */
-	ip->frag_off	|= more_fragments;
-	ip->frag_off	|= fragoff >> 3;
-#else
-/* Linux */
-/* OpenBSD */
 	ip->frag_off	|= htons(more_fragments);
 	ip->frag_off	|= htons(fragoff >> 3); /* shift three flags bit */
-#endif
 
 	ip->ttl		= src_ttl;
 	if (opt_rawipmode)	ip->protocol = raw_ip_protocol;

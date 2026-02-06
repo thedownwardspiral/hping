@@ -895,6 +895,9 @@ int mpz_muli_raw(mpz_ptr r, mpz_ptr z, mpz_atom_t *d, u_int32_t l)
 	int tmptarget = (r == z);
 	mpz_atom_t *x = NULL;
 
+	mpz_init(t);
+	mpz_init(rt);
+
 	/* Make a copy of 'd' if it's == r */
 	if (r->d == d) {
 		if ((x = malloc(l*MPZ_ATOMSZ)) == NULL)
@@ -906,14 +909,11 @@ int mpz_muli_raw(mpz_ptr r, mpz_ptr z, mpz_atom_t *d, u_int32_t l)
 	if (tmptarget) {
 		rbak = r;
 		r = rt;
-		mpz_init(r);
 		r->s = rbak->s; /* preserve the original sign */
 	}
 	/* two product of a,b requires at max len(a)+len(b) bytes */
 	if ((err = mpz_zero_realloc(r, maxi)) != SBN_OK)
 		goto error;
-	/* initialize the temp var */
-	mpz_init(t);
 	if ((err = mpz_realloc(t, maxi)) != SBN_OK)
 		goto error;
 	for(j = 0; j < l; j++) {

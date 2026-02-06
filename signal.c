@@ -13,13 +13,7 @@ void (*Signal(int signo, void (*func)(int)))(int)
 	act.sa_handler = func;
 	sigemptyset(&act.sa_mask);
 	act.sa_flags = 0; /* So if set SA_RESETHAND is cleared */
-	if (signo == SIGALRM)
-	{
-#ifdef SA_INTERRUPT
-		act.sa_flags |= SA_INTERRUPT;   /* SunOS 4.x */
-#endif
-	}
-	else
+	if (signo != SIGALRM)
 	{
 #ifdef SA_RESTART
 		act.sa_flags |= SA_RESTART;     /* SVR4, 4.4BSD, Linux */

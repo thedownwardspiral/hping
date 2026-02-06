@@ -22,8 +22,6 @@
 #include <netdb.h>
 #include <sched.h>
 
-#include <sys/ioctl.h>
-#include <net/bpf.h>
 #include <pcap.h>
 
 #include "release.h"
@@ -67,9 +65,6 @@ static void HpingRecvCloseHandler(struct recv_handler *ra)
 static struct recv_handler *HpingRecvGetHandler(struct recv_handler *ra, int len, char *ifname, Tcl_Interp *interp)
 {
 	int i;
-	#if (!defined OSTYPE_LINUX) && (!defined __sun__)
-	int on = 1;
-	#endif
 
 	for (i = 0; i < len; i++) {
 		if (!ra[i].rh_ifname[0])
@@ -88,12 +83,6 @@ static struct recv_handler *HpingRecvGetHandler(struct recv_handler *ra, int len
 	ra[i].rh_pcapfp = pcap_open_live(ifname, 99999, 0, 1, ra[i].rh_pcap_errbuf);
 	if (ra[i].rh_pcapfp == NULL)
 		return NULL;
-	#if (!defined OSTYPE_LINUX) && (!defined __sun__)
-	/* Return the packets to userspace as fast as possible */
-	if (ioctl(pcap_fileno(ra[i].rh_pcapfp), BIOCIMMEDIATE, &on) == -1) {
-		/* XXX non-critical error */
-	}
-	#endif
 	strlcpy(ra[i].rh_ifname, ifname, HPING_IFNAME_LEN);
 	ra[i].rh_interp = NULL;
 	ra[i].rh_linkhdrsize = dltype_to_lhs(pcap_datalink(ra[i].rh_pcapfp));
@@ -600,7 +589,7 @@ static int HpingHasFieldCmd(ClientData clientData, Tcl_Interp *interp,
 static int HpingSetFieldCmd(ClientData clientData, Tcl_Interp *interp,
 		int objc, Tcl_Obj *CONST objv[])
 {
-	char *layer, *field, *value, *packet;
+	char *layer, *field, *packet;
 	int skip = 0, vstart, vend;
 	Tcl_Obj *result;
 
@@ -611,7 +600,6 @@ static int HpingSetFieldCmd(ClientData clientData, Tcl_Interp *interp,
 	result = Tcl_GetObjResult(interp);
 	layer = Tcl_GetStringFromObj(objv[2], NULL);
 	field = Tcl_GetStringFromObj(objv[3], NULL);
-	value = Tcl_GetStringFromObj(objv[4], NULL);
 	if (objc == 7) {
 		Tcl_GetIntFromObj(interp, objv[5], &skip);
 		packet = Tcl_GetStringFromObj(objv[6], NULL);
@@ -970,7 +958,7 @@ struct Tcl_ObjType tclMpzType = {
  * 'val'. If 'val' == NULL, the mpz object is set to zero. */
 void Tcl_SetMpzObj(Tcl_Obj *objPtr, mpz_ptr val)
 {
-	Tcl_ObjType *typePtr;
+	const Tcl_ObjType *typePtr;
 	mpz_ptr mpzPtr;
 
 	/* It's not a good idea to set a shared object... */
@@ -1066,7 +1054,7 @@ int SetMpzFromAny(struct Tcl_Interp* interp, Tcl_Obj *objPtr)
 	char *s;
 	mpz_t t;
 	mpz_ptr mpzPtr;
-	Tcl_ObjType *typePtr;
+	const Tcl_ObjType *typePtr;
 
 	if (objPtr->typePtr == &tclMpzType)
 		return TCL_OK;

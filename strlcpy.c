@@ -41,8 +41,6 @@
 /* $Id: strlcpy.c,v 1.1.1.1 2003/08/31 17:23:55 antirez Exp $ */
 
 /* This function comes from BSD */
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__) && \
-    !defined(__bsdi__) && !defined(__APPLE__)
 #include <sys/types.h>
 #include <string.h>
 
@@ -79,4 +77,40 @@ size_t strlcpy(dst, src, siz)
         return(s - src - 1);    /* count does not include NUL */
 }
 
-#endif /* ! __*BSD__ */
+/*
+ * Appends src to string dst of size siz (unlike strncat, siz is the
+ * full size of dst, not space left).  At most siz-1 characters
+ * will be copied.  Always NUL terminates (unless siz <= strlen(dst)).
+ * Returns strlen(src) + MIN(siz, strlen(initial dst)).
+ * If retval >= siz, truncation occurred.
+ */
+size_t strlcat(dst, src, siz)
+        char *dst;
+        const char *src;
+        size_t siz;
+{
+        register char *d = dst;
+        register const char *s = src;
+        register size_t n = siz;
+        size_t dlen;
+
+        /* Find the end of dst and adjust bytes left but don't go past end */
+        while (n-- != 0 && *d != '\0')
+                d++;
+        dlen = d - dst;
+        n = siz - dlen;
+
+        if (n == 0)
+                return(dlen + strlen(s));
+        while (*s != '\0') {
+                if (n != 1) {
+                        *d++ = *s;
+                        n--;
+                }
+                s++;
+        }
+        *d = '\0';
+
+        return(dlen + (s - src));       /* count does not include NUL */
+}
+

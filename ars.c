@@ -482,7 +482,7 @@ u_int16_t ars_multi_cksum(struct mc_context *c, int op, void *vbuf,
 		sum += (sum >> 16);
 		return (u_int16_t) ~sum;
 	} else {
-		assert("else reached in ars_multi_cksum()" == "");
+		assert(0 && "else reached in ars_multi_cksum()");
 	}
 	return 0; /* unreached, here to prevent warnings */
 }
@@ -900,24 +900,16 @@ int ars_build_packet(struct ars_packet *pkt, unsigned char **packet, size_t *siz
 	return -ARS_OK;
 }
 
-/* FreeBSD and NetBSD have a strange raw socket layer :(
- * Call this function anyway to increase portability
- * since it does not perform any operation if the
- * system isn't FreeBSD or NetBSD. */
+/* Debian/Linux path: no raw socket header adjustments needed. */
 int ars_bsd_fix(struct ars_packet *pkt, unsigned char *packet, size_t size)
 {
-	struct ars_iphdr *ip;
-
 	if (pkt->p_layer[0].l_type != ARS_TYPE_IP ||
 	    size < sizeof(struct ars_iphdr)) {
-		ars_set_error(pkt, "BSD fix requested, but layer 0 not IP");
+		ars_set_error(pkt, "Raw socket fix requested, but layer 0 not IP");
 		return -ARS_INVALID;
 	}
-	ip = (struct ars_iphdr*) packet;
-#if defined OSTYPE_DARWIN || defined OSTYPE_FREEBSD || defined OSTYPE_NETBSD || defined OSTYPE_BSDI
-	ip->tot_len = ntohs(ip->tot_len);
-	ip->frag_off = ntohs(ip->frag_off);
-#endif
+	(void)packet;
+	(void)size;
 	return -ARS_OK;
 }
 

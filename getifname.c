@@ -18,28 +18,41 @@
 #include <unistd.h>		/* close */
 #include <stdlib.h>
 
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || \
-    defined(__bsdi__) || defined(__APPLE__)
-#include <ifaddrs.h>
-#include <net/route.h>
-#endif /* defined(__*BSD__) */
-
 #include "hping2.h"
 #include "globals.h"
 
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__) && \
-    !defined(__linux__) && !defined(__sun__) && !defined(__bsdi__) && \
-    !defined(__APPLE__)
+#if !defined(__linux__)
 #error Sorry, interface code not implemented.
 #endif
 
-#ifdef __sun__
-#include <sys/sockio.h>
-#include <net/route.h>
-#include <net/if_dl.h>
-#endif
+/* Determine the output interface address for a given destination using
+ * the kernel routing table.  Creates a UDP socket, connects it to the
+ * destination (which doesn't send traffic), then reads back the local
+ * address the kernel selected.  Returns 0 on success, -1 on error. */
+int get_output_if(struct sockaddr_in *dest, struct sockaddr_in *ifip)
+{
+	int sd;
+	struct sockaddr_in saddr;
+	socklen_t slen = sizeof(saddr);
 
-#if (defined OSTYPE_LINUX) || (defined __sun__)
+	sd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sd == -1)
+		return -1;
+	/* Use an arbitrary port; connect() with UDP only sets the route. */
+	dest->sin_port = htons(1025);
+	if (connect(sd, (struct sockaddr *)dest, sizeof(*dest)) == -1) {
+		close(sd);
+		return -1;
+	}
+	if (getsockname(sd, (struct sockaddr *)&saddr, &slen) == -1) {
+		close(sd);
+		return -1;
+	}
+	close(sd);
+	memcpy(ifip, &saddr, sizeof(saddr));
+	return 0;
+}
+
 int get_if_name(void)
 {
 	int fd;
@@ -154,12 +167,7 @@ int get_if_name(void)
 		}
 		else
 		{
-#ifdef __sun__
-			/* somehow solaris is braidamaged in wrt ifr_mtu */
-			h_if_mtu = ifr.ifr_metric;
-#else
 			h_if_mtu = ifr.ifr_mtu;
-#endif
 		}
 		close(fd);
 		return 0;
@@ -171,185 +179,4 @@ int get_if_name(void)
 
 	close(fd);
 	return 0;
-}
-
-#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || \
-      defined(__bsdi__) || defined(__APPLE__)
-
-/* return interface informations :
-   - from the specified (-I) interface
-   - from the routing table
-   - or at least from the first UP interface found
-*/
-int get_if_name(void)
-{
-	/* variable declarations */
-	struct ifaddrs		*ifap, *ifa;
-	char			current_if_name[24];
-	char			saved_ifname[24];
-	struct sockaddr_in	output_if_addr;
-#ifdef __NetBSD__
-	int s;
-	struct ifreq ifr;
-#endif  /* __NetBSD__ */
-
-	if (getifaddrs(&ifap) < 0)
-		perror("getifaddrs");
-
-	saved_ifname[0] = 0;
-
-	/* lookup desired interface */
-	if(ifname[0] == 0) {
-		/* find gateway interface from kernel */
-                if (get_output_if(&remote, &output_if_addr) == 0) {
-                        if (opt_debug)
-                                printf("DEBUG: Output interface address: %s\n",
-                                        inet_ntoa(output_if_addr.sin_addr));
-			/* Put something in saved_ifname in order to tell
-			   that the output adress is known */
-			saved_ifname[0] = 'X'; saved_ifname[1] = 0;
-                } else {
-                        fprintf(stderr, "Warning: Unable to guess the output "
-                                        "interface\n");
-                }
-	}
-	else {
-		/* use the forced interface name */
-		strlcpy(saved_ifname,ifname,24);
-	}
-
-	/* get interface information */
-        for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
-
-		if (opt_debug) printf("\n DEBUG: if %s: ", ifa->ifa_name);
-
-		/* print if the data structure is null or not */
-		if (ifa->ifa_data) {
-			if(opt_debug) printf("DEBUG: (struct DATA) "); }
-		else
-			if(opt_debug) printf("DEBUG: (struct DATA is NULL) ");
-
-		if (!(ifa->ifa_flags & IFF_UP)) {       /* if down */
-			if (opt_debug)
-				printf("DEBUG: DOWN");
-			continue; 
-		}
-
-		if ((ifa->ifa_flags & IFF_LOOPBACK)&&
-		    (strncmp(saved_ifname,"lo0",3))) {  /* if loopback */
-			if (opt_debug)
-				printf("DEBUG: LOOPBACK, SKIPPED");
-			continue;
-		}
-
-		if (ifa->ifa_addr->sa_family == AF_LINK) {
-			if (opt_debug)
-				printf("DEBUG: AF_LINK ");
-			strlcpy(ifname,ifa->ifa_name,1024);
-			strlcpy(current_if_name,ifa->ifa_name,24);
-
-/* I don't know why NetBSD behavior is not the same */
-#ifdef __NetBSD__
-			memset( &ifr, 0, sizeof(ifr));
-			strlcpy(ifr.ifr_name, ifa->ifa_name, sizeof(ifr.ifr_name));
-			if( sizeof(ifr.ifr_addr) >= ifa->ifa_addr->sa_len )
-				memcpy(&ifr.ifr_addr, ifa->ifa_addr, 
-				       ifa->ifa_addr->sa_len);
-			if( (s = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
-				perror("[get_if_name] socket");
-				return -1;
-			}
-			if (ioctl(s, SIOCGIFMTU, (caddr_t)&ifr) < 0) h_if_mtu = 0;
-			else h_if_mtu = ifr.ifr_mtu;
-			close(s);
-#else
-			if( ifa->ifa_data )
-				h_if_mtu = ((struct if_data *)ifa->ifa_data)->ifi_mtu;
-			else {
-				h_if_mtu = 1500;
-				fprintf(stderr, "Warning: fixing MTU to 1500 !\n");
-                        }
-#endif /* __NetBSD__ */
-			continue;
-		}
-
-		if (ifa->ifa_addr->sa_family == AF_INET6) {
-			if (opt_debug)
-				printf("AF_INET6 ");
-			continue;
-		}
-
-		if (ifa->ifa_addr->sa_family == AF_INET) {
-			if (opt_debug)
-				printf("AF_INET ");
-
-			if(strncmp(ifa->ifa_name,current_if_name,24))
-				continue; /* error */
-
-			if(opt_debug) printf("OK\n");
-
-			strlcpy(ifstraddr,
-			        inet_ntoa(((struct sockaddr_in *)ifa->ifa_addr)->sin_addr),
-				          1024);
-			
-			if( (saved_ifname[0] == 0) ||
-                            (!strncmp(ifa->ifa_name, saved_ifname, 24)) || 
-			    (((struct sockaddr_in *)ifa->ifa_addr)->sin_addr.s_addr ==
-			       output_if_addr.sin_addr.s_addr) )
-				break; /* asked if found or first UP interface */
-		}
-
-		/* interface not found, use hardcoded 'lo' */
-		strlcpy(ifname, "lo0", 1024);
-		strlcpy(ifstraddr, "127.0.0.1", 1024);
-		h_if_mtu = 1500;
-	}
-
-	freeifaddrs(ifap);
-	return 0;
-}
-
-#endif /* __*BSD__ */
-
-/* Try to obtain the IP address of the output interface according
- * to the OS routing table. Derived from R.Stevens */
-int get_output_if(struct sockaddr_in *dest, struct sockaddr_in *ifip)
-{
-	socklen_t len;
-	int sock_rt, on=1;
-	struct sockaddr_in iface_out;
- 
-	memset(&iface_out, 0, sizeof(iface_out));
-	sock_rt = socket(AF_INET, SOCK_DGRAM, 0 );
-
-	dest->sin_port = htons(11111);
-	if (setsockopt(sock_rt, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on))
-            == -1) {
-		if (opt_debug)
-			perror("DEBUG: [get_output_if] setsockopt(SOL_SOCKET, "
-			       "SO_BROADCAST");
-		close(sock_rt);
-		return -1;
-	}
-  
-	if (connect(sock_rt, (struct sockaddr*)dest, sizeof(struct sockaddr_in))
-	    == -1 ) {
-		if (opt_debug)
-			perror("DEBUG: [get_output_if] connect");
-		close(sock_rt);
-		return -1;
-	}
-
-	len = sizeof(iface_out);
-	if (getsockname(sock_rt, (struct sockaddr *)&iface_out, &len) == -1 ) {
-		if (opt_debug)
-			perror("DEBUG: [get_output_if] getsockname");
-		close(sock_rt);
-		return -1;
-	}
-	close(sock_rt);
-	if (iface_out.sin_addr.s_addr == 0)
-		return 1;
-	memcpy(ifip, &iface_out, sizeof(struct sockaddr_in));
-        return 0;
 }

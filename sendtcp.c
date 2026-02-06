@@ -78,12 +78,8 @@ void send_tcp(void)
 	data_handler(data, data_size);
 
 	/* compute checksum */
-#ifdef STUPID_SOLARIS_CHECKSUM_BUG
-	tcp->th_sum = packet_size;
-#else
 	tcp->th_sum = cksum((u_short*) packet, PSEUDOHDR_SIZE +
 		      packet_size);
-#endif
 
 	/* adds this pkt in delaytable */
 	delaytable_add(sequence, src_port, time(NULL), get_usec(), S_SENT);

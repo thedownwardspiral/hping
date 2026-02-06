@@ -1,62 +1,18 @@
-You can compile hping3 at least under:
+Debian Trixie
+-------------
 
-Linux
-OpenBSD
-FreeBSD
-NetBSD
-Solaris
+hping3 targets Debian Trixie only.
 
-But hping3 is beta, for now it was mostly tested only in Linux,
-this should change soon now that the first beta is out.
+Install dependencies:
 
-Note that starting from hping3 libpcap should be used
-with all the kind of systems, including Linux.
+$ sudo apt-get update
+$ sudo apt-get install -y build-essential libpcap-dev tcl-dev
 
-Linux
------
-
-please, follows this steps:
+Build and install:
 
 $ ./configure (first try ./configure --help)
-$ vi Makefile (optional)
 $ make
-$ su
-# make install
+$ sudo make install
 
-FreeBSD, OpenBSD, NetBSD
-------------------------
-
-You will need the libpcap and the gmake utility installed on your system. 
-
-$ ./configure
-$ gmake
-$ su (or calife)
-# gmake install
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-NOTE: You should take care about your net/bpf.h file installing on
-      BSD systems (specially with OpenBSD). If your original bpf.h was
-      overwritten with the libpcap one probably hping will not work
-      with over some interface.
-
-      For example if you use the libpcap bpf.h on OpenBSD hping will
-      not work over PPP interfaces.
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Solaris
--------
-
-$ export CC="gcc"
-$ ./configure
-$ gmake
-$ su
-# gmake install
-
-ALL
----
-
-To setuid hping3 is like to open the port to script kiddies
-for now. Don't do it in any real multiuser and otherwise
-security-sensitive system.
-
-antirez
+NOTE: Root access is required at runtime for raw socket operations.
+For security reasons do not setuid hping3 on multiuser systems.

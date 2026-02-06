@@ -324,24 +324,25 @@ int main(int argc, char **argv)
 	}
 
 	if (opt_rawipmode) {
-		strcat(setflags, "raw IP mode");
+		strlcpy(setflags, "raw IP mode", sizeof(setflags));
 		hdr_size = IPHDR_SIZE;
 	} else if (opt_icmpmode) {
-		strcat(setflags, "icmp mode");
+		strlcpy(setflags, "icmp mode", sizeof(setflags));
 		hdr_size = IPHDR_SIZE + ICMPHDR_SIZE;
 	} else if (opt_udpmode) {
-		strcat(setflags, "udp mode");
+		strlcpy(setflags, "udp mode", sizeof(setflags));
 		hdr_size = IPHDR_SIZE + UDPHDR_SIZE;
 	} else {
-		if (tcp_th_flags & TH_RST)  strcat(setflags, "R");
-		if (tcp_th_flags & TH_SYN)  strcat(setflags, "S");
-		if (tcp_th_flags & TH_ACK)  strcat(setflags, "A");
-		if (tcp_th_flags & TH_FIN)  strcat(setflags, "F");
-		if (tcp_th_flags & TH_PUSH) strcat(setflags, "P");
-		if (tcp_th_flags & TH_URG)  strcat(setflags, "U");
-		if (tcp_th_flags & TH_X)    strcat(setflags, "X");
-		if (tcp_th_flags & TH_Y)    strcat(setflags, "Y");
-		if (setflags[0] == '\0')    strcat(setflags, "NO FLAGS are");
+		setflags[0] = '\0';
+		if (tcp_th_flags & TH_RST)  strlcat(setflags, "R", sizeof(setflags));
+		if (tcp_th_flags & TH_SYN)  strlcat(setflags, "S", sizeof(setflags));
+		if (tcp_th_flags & TH_ACK)  strlcat(setflags, "A", sizeof(setflags));
+		if (tcp_th_flags & TH_FIN)  strlcat(setflags, "F", sizeof(setflags));
+		if (tcp_th_flags & TH_PUSH) strlcat(setflags, "P", sizeof(setflags));
+		if (tcp_th_flags & TH_URG)  strlcat(setflags, "U", sizeof(setflags));
+		if (tcp_th_flags & TH_X)    strlcat(setflags, "X", sizeof(setflags));
+		if (tcp_th_flags & TH_Y)    strlcat(setflags, "Y", sizeof(setflags));
+		if (setflags[0] == '\0')    strlcpy(setflags, "NO FLAGS are", sizeof(setflags));
 		hdr_size = IPHDR_SIZE + TCPHDR_SIZE;
 	}
 	

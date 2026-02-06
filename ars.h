@@ -6,11 +6,6 @@
 #ifndef _ARS_H
 #define _ARS_H
 
-/* define before including sys/socket.h */
-#if defined(__APPLE__) && !defined(_BSD_SOCKLEN_T_)
-#define _BSD_SOCKLEN_T_ int
-#endif
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <string.h>
@@ -523,9 +518,6 @@ int ars_rapd_igrp(struct adbuf *dest, struct ars_packet *pkt, int layer);
 int ars_rapd_igrpentry(struct adbuf *dest, struct ars_packet *pkt, int layer);
 int ars_rapd_data(struct adbuf *dest, struct ars_packet *pkt, int layer);
 
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__) && \
-    !defined(__bsdi__) && !defined(__APPLE__)
 size_t strlcpy(char *dst, const char *src, size_t siz);
-#endif
 
 #endif /* _ARS_H */

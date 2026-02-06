@@ -16,7 +16,7 @@
 char *memstr(char *haystack, char *needle, int size)
 {
 	char *p;
-	char needlesize = strlen(needle);
+	size_t needlesize = strlen(needle);
 
 	for (p = haystack; p <= (haystack-needlesize+size); p++)
 	{
