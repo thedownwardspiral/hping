@@ -51,6 +51,25 @@ modern Linux (including ARM/aarch64), modern GCC, and current Tcl versions.
   longer contains the non-Linux `#include <net/bpf.h>` conditional
   (pcap.h provides everything needed on Debian).
 
+### Performance
+
+- **Scan mode: compact active-port list** -- `sender()` now iterates
+  only the ports the user requested instead of all 65,535 every retry
+  loop, reducing O(MAXPORT) scans to O(active_ports).
+- **Scan mode: batched probe sends** -- moved the inter-probe sleep
+  outside the send loop so all probes in a retry round are sent first,
+  then a single sleep occurs, instead of sleeping after every packet.
+- **Listen mode: cached `signlen`** -- `listenmain()` now uses the
+  pre-computed global `signlen` instead of calling `strlen(sign)` on
+  every received packet.
+- **Static packet buffer in `wait_packet()`** -- the 65 KB+ receive
+  buffer in `waitpacket.c` is now `static` instead of a per-call
+  variable-length stack allocation, reducing stack pressure.
+- **Pre-parsed `--rand-dest` template** -- `select_next_random_dest()`
+  now parses the target pattern once (via `sscanf`) and caches which
+  octets are random vs fixed, avoiding repeated string parsing on every
+  packet send.
+
 ### Code safety
 
 - **Replaced `strcat` with `strlcpy`/`strlcat`** -- all flag-string

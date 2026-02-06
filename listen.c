@@ -73,7 +73,7 @@ void listenmain(void)
 				}
 			}
 
-			p+=strlen(sign);
+			p+=signlen;
 			write(stdoutFD, p, size-(p-ip_packet));
 		}
 	}

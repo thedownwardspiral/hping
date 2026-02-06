@@ -36,10 +36,17 @@ static void select_next_random_source(void)
 		    ra[0], ra[1], ra[2], ra[3]);
 }
 
-static void select_next_random_dest(void)
+/* Pre-parsed --rand-dest template: is_random[i] true means octet i
+ * gets a random value each send, otherwise fixed_val[i] is used. */
+static int randdest_parsed = 0;
+static int randdest_is_random[4];
+static unsigned char randdest_fixed[4];
+
+static void parse_rand_dest_template(void)
 {
-	unsigned char ra[4];
 	char a[4], b[4], c[4], d[4];
+	char *octets[4] = { a, b, c, d };
+	int i;
 
 	if (sscanf(targetname, "%4[^.].%4[^.].%4[^.].%4[^.]", a, b, c, d) != 4)
 	{
@@ -50,11 +57,25 @@ static void select_next_random_dest(void)
 		exit(1);
 	}
 	a[3] = b[3] = c[3] = d[3] = '\0';
+	for (i = 0; i < 4; i++) {
+		randdest_is_random[i] = (octets[i][0] == 'x');
+		randdest_fixed[i] = randdest_is_random[i] ?
+			0 : strtoul(octets[i], NULL, 0);
+	}
+	randdest_parsed = 1;
+}
 
-	ra[0] = a[0] == 'x' ? (hp_rand() & 0xFF) : strtoul(a, NULL, 0);
-	ra[1] = b[0] == 'x' ? (hp_rand() & 0xFF) : strtoul(b, NULL, 0);
-	ra[2] = c[0] == 'x' ? (hp_rand() & 0xFF) : strtoul(c, NULL, 0);
-	ra[3] = d[0] == 'x' ? (hp_rand() & 0xFF) : strtoul(d, NULL, 0);
+static void select_next_random_dest(void)
+{
+	unsigned char ra[4];
+	int i;
+
+	if (!randdest_parsed)
+		parse_rand_dest_template();
+
+	for (i = 0; i < 4; i++)
+		ra[i] = randdest_is_random[i] ?
+			(hp_rand() & 0xFF) : randdest_fixed[i];
 	memcpy(&remote.sin_addr.s_addr, ra, 4);
 
 	if (opt_debug) {

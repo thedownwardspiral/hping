@@ -47,7 +47,7 @@ void wait_packet(void)
 {
 	int match = 0;
 	int size, iphdr_size, enc_size;
-	char packet [IP_MAX_SIZE+linkhdr_size];
+	static char packet [IP_MAX_SIZE+TRHDR_SIZE];
 	char *ip_packet, *enc_packet;
 
 	size = read_packet(packet, IP_MAX_SIZE+linkhdr_size);

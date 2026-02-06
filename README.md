@@ -163,6 +163,7 @@ The codebase has been updated to build cleanly with modern toolchains:
 - **Buffer safety** -- replaced `strcat` with bounds-checked `strlcpy`/`strlcat` throughout
 - **Portability** -- endianness bitfield macros generated for toolchains that lack them
 - **Platform cleanup** -- removed dead BSD (FreeBSD, OpenBSD, NetBSD, BSDI) and SunOS platform code; codebase now targets Debian/Linux only
+- **Performance** -- scan mode uses compact active-port list and batched sends; cached `signlen` in listen mode; static packet buffer in `wait_packet()`; pre-parsed `--rand-dest` template
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 

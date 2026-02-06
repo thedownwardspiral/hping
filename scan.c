@@ -285,7 +285,7 @@ err:
 }
 
 /* -------------------------------- output ---------------------------------- */
-static void sender(struct portinfo *pi)
+static void sender(struct portinfo *pi, int *active_ports, int nports)
 {
 	int i, retry = 0;
 	time_t start_time;
@@ -296,20 +296,24 @@ static void sender(struct portinfo *pi)
 		int active = 0;
 		int recvd = 0;
 		retry ++;
-		for (i = 0; i < MAXPORT; i++) {
-			if (pi[i].active && pi[i].retry) {
+		for (i = 0; i < nports; i++) {
+			int port = active_ports[i];
+			if (pi[port].active && pi[port].retry) {
 				active++;
-				pi[i].retry--;
+				pi[port].retry--;
 				sequence = -1;
-				dst_port = i;
-				pi[i].sentms = get_midnight_ut_ms();
+				dst_port = port;
+				pi[port].sentms = get_midnight_ut_ms();
 				send_tcp();
-				if (opt_waitinusec) {
-					if (usec_delay.it_interval.tv_usec)
-						usleep(usec_delay.it_interval.tv_usec);
-				} else {
-					sleep(sending_wait);
-				}
+			}
+		}
+		/* Sleep once per batch instead of per-probe */
+		if (active) {
+			if (opt_waitinusec) {
+				if (usec_delay.it_interval.tv_usec)
+					usleep(usec_delay.it_interval.tv_usec);
+			} else {
+				sleep(sending_wait);
 			}
 		}
 		avrgms = (float) pi[MAXPORT+1].active;
@@ -321,8 +325,9 @@ static void sender(struct portinfo *pi)
 			else
 				sleep(1);
 		}
-		for (i = 0; i < MAXPORT; i++) {
-			if (!pi[i].active && pi[i].retry)
+		for (i = 0; i < nports; i++) {
+			int port = active_ports[i];
+			if (!pi[port].active && pi[port].retry)
 				recvd++;
 		}
 		/* More to scan? */
@@ -331,9 +336,10 @@ static void sender(struct portinfo *pi)
 				sleep(1);
 			fprintf(stderr, "All replies received. Done.\n");
 			printf("Not responding ports: ");
-			for (i = 0; i < MAXPORT; i++) {
-				if (pi[i].active && !pi[i].retry)
-					printf("(%d %.11s) ", i, port_to_name(i));
+			for (i = 0; i < nports; i++) {
+				int port = active_ports[i];
+				if (pi[port].active && !pi[port].retry)
+					printf("(%d %.11s) ", port, port_to_name(port));
 			}
 			printf("\n");
 			exit(0);
@@ -498,6 +504,7 @@ static void do_exit(int sid)
 void scanmain(void)
 {
 	struct portinfo *pi;
+	int *active_ports;
 	int ports = 0, i;
 	int childpid;
 
@@ -521,8 +528,17 @@ void scanmain(void)
 		if (!pi[i].active)
 			pi[i].retry = 0;
 	}
-	for (i = 0; i <= MAXPORT; i++)
-		ports += pi[i].active;
+	/* Build compact list of active ports */
+	active_ports = malloc(sizeof(int) * (MAXPORT+1));
+	if (active_ports == NULL) {
+		fprintf(stderr, "Out of memory\n");
+		shm_close(pi);
+		exit(1);
+	}
+	for (i = 0; i <= MAXPORT; i++) {
+		if (pi[i].active)
+			active_ports[ports++] = i;
+	}
 	fprintf(stderr, "%d ports to scan, use -V to see all the replies\n", ports);
 	fprintf(stderr, "+----+-----------+---------+---+-----+-----+-----+\n");
 	fprintf(stderr, "|port| serv name |  flags  |ttl| id  | win | len |\n");
@@ -546,7 +562,7 @@ void scanmain(void)
 	} else {	/* child */
 		Signal(SIGINT, do_exit);
 		Signal(SIGTERM, do_exit);
-		sender(pi);
+		sender(pi, active_ports, ports);
 	}
 	/* UNREACHED */
 }
